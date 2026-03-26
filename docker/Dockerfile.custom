@@ -1,0 +1,57 @@
+# Container A — Custom auto mode implementation
+# Uses classifier.py PreToolUse hook + --dangerously-skip-permissions
+# The hook fires for every tool call and calls Claude Sonnet to classify.
+
+FROM node:20-slim
+
+# System deps
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    jq \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI (as root, global install)
+# Option A (default): install from npm registry
+# Option B: if a local package/ copy is present in build context, use it instead
+RUN if [ -d /opt/claude-code-src ]; then \
+      cd /opt/claude-code-src && \
+      npm install --omit=optional 2>/dev/null || true && \
+      ln -sf /opt/claude-code-src/cli.js /usr/local/bin/claude && \
+      chmod +x /usr/local/bin/claude; \
+    else \
+      npm install -g @anthropic-ai/claude-code; \
+    fi
+
+# Install anthropic Python SDK for classifier.py
+RUN pip3 install anthropic --break-system-packages
+
+# Copy classifier
+COPY classifier.py /opt/classifier/classifier.py
+
+# Benchmark files
+COPY benchmark/ /benchmark/
+
+# Workspace init script
+COPY docker/workspace/init.sh /init.sh
+RUN chmod +x /init.sh
+
+# Use the built-in non-root 'node' user (--dangerously-skip-permissions is blocked for root)
+RUN mkdir -p /workspace/.claude /workspaces /results && \
+    echo '{"permissions":{"defaultMode":"acceptEdits"},"autoMode":{"allow":[],"soft_deny":[],"environment":["**Trusted repo**: /workspace and its configured remote(s)","**Source control**: The trusted repo and its remote(s) only (no additional orgs configured)","**Trusted internal domains**: None configured","**Trusted cloud buckets**: None configured"]},"hooks":{"PreToolUse":[{"matcher":".*","hooks":[{"type":"command","command":"python3 /opt/classifier/classifier.py"}]}]}}' > /workspace/.claude/settings.json && \
+    chown -R node:node /workspace /workspaces /results /benchmark /opt/classifier
+
+# Copy CLAUDE.md (auto mode behavioral directives)
+COPY --chown=node:node CLAUDE.md /workspace/CLAUDE.md
+
+USER node
+WORKDIR /workspace
+
+# Container-specific env
+ENV CONTAINER_NAME=custom
+ENV CLAUDE_EXTRA_FLAGS=--dangerously-skip-permissions
+ENV HOME=/home/node
+
+CMD ["python3", "/benchmark/runner.py"]

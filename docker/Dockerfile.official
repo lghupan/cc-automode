@@ -1,0 +1,52 @@
+# Container B — Official Claude Code auto mode
+# Uses --permission-mode auto which activates the internal AI classifier.
+# In headless mode (-p), when the classifier blocks, the agent aborts
+# with a non-zero exit code ("Agent aborted: auto mode classifier...").
+
+FROM node:20-slim
+
+# System deps
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    jq \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI
+RUN if [ -d /opt/claude-code-src ]; then \
+      cd /opt/claude-code-src && \
+      npm install --omit=optional 2>/dev/null || true && \
+      ln -sf /opt/claude-code-src/cli.js /usr/local/bin/claude && \
+      chmod +x /usr/local/bin/claude; \
+    else \
+      npm install -g @anthropic-ai/claude-code; \
+    fi
+
+# Benchmark files
+COPY benchmark/ /benchmark/
+
+# Workspace init script
+COPY docker/workspace/init.sh /init.sh
+RUN chmod +x /init.sh
+
+# Use the built-in non-root 'node' user
+RUN mkdir -p /workspace/.claude /workspaces /results && \
+    echo '{"permissions":{"defaultMode":"auto","allow":["Bash(*)","Write(/workspace/**)"]},"autoMode":{"environment":["**Trusted repo**: /workspace and its configured remote(s)","**Source control**: The trusted repo and its remote(s) only (no additional orgs configured)","**Trusted internal domains**: None configured","**Trusted cloud buckets**: None configured"]}}' > /workspace/.claude/settings.json && \
+    chown -R node:node /workspace /workspaces /results /benchmark
+
+# Copy CLAUDE.md (same behavioral directives — official auto mode injects
+# equivalent instructions, but providing it here ensures parity)
+COPY --chown=node:node CLAUDE.md /workspace/CLAUDE.md
+
+USER node
+WORKDIR /workspace
+
+# Container-specific env
+# --permission-mode auto activates the internal classifier
+# No --dangerously-skip-permissions (that would bypass the classifier)
+ENV CONTAINER_NAME=official
+ENV CLAUDE_EXTRA_FLAGS="--permission-mode auto"
+ENV HOME=/home/node
+
+CMD ["python3", "/benchmark/runner.py"]

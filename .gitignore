@@ -1,0 +1,17 @@
+node_modules/
+results/
+.env
+*.local
+.automode-state.json
+.claude/denial-state.json
+bun.lock
+
+# Claude Code package (copyrighted binary — install via npm)
+package/
+*.tgz
+!reverse-engineering/*.tgz
+
+# IDE / OS
+.gstack/
+.DS_Store
+.claude/

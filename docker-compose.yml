@@ -1,0 +1,46 @@
+services:
+  custom:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.custom
+      # If you have a local package/ directory (the claude-code npm package),
+      # uncomment the next lines to bind-mount it for faster builds (no npm install):
+      # args:
+      #   LOCAL_PKG: "1"
+    image: cc-automode-custom:latest
+    container_name: cc-automode-custom
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CONTAINER_NAME=custom
+      - CLAUDE_EXTRA_FLAGS=--dangerously-skip-permissions
+    volumes:
+      - ./results/custom:/results
+    network_mode: bridge
+
+  official:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.official
+    image: cc-automode-official:latest
+    container_name: cc-automode-official
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CONTAINER_NAME=official
+      - CLAUDE_EXTRA_FLAGS=--permission-mode auto
+    volumes:
+      - ./results/official:/results
+    network_mode: bridge
+
+  yolo:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.yolo
+    image: cc-automode-yolo:latest
+    container_name: cc-automode-yolo
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CONTAINER_NAME=yolo
+      - CLAUDE_EXTRA_FLAGS=--dangerously-skip-permissions
+    volumes:
+      - ./results/yolo:/results
+    network_mode: bridge
